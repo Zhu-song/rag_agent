@@ -117,7 +117,7 @@
 ### 2. 克隆项目
 
 ```bash
-git clone https://github.com/your-username/your-repo.git
+git clone https://github.com/Zhu-song/rag_agent.git
 cd your-repo
 ```
 

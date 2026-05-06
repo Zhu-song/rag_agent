@@ -17,19 +17,26 @@ os.makedirs(VECTOR_DB_DIR, exist_ok=True)
 os.makedirs(LOG_DIR, exist_ok=True)
 
 # ======================
-# LLM 配置（智谱）
+# LLM 配置（支持小米 MiMo / 智谱 GLM）
 # ======================
+# 小米 MiMo API 配置
+MIMO_API_KEY = os.getenv("MIMO_API_KEY", "tp-cw7aqd536nahvoiiz5xnsgtrlrae1uq062s0jbaytjogpcd6")
+MIMO_MODEL = "mimo-v2.5-pro"
+MIMO_BASE_URL = "https://api.xiaomimimo.com/v1"
+
+# 智谱 GLM API 配置（备用）
 ZHIPU_API_KEY = os.getenv("ZHIPU_API_KEY")
 ZHIPU_MODEL = "glm-4"
 ZHIPU_EMBEDDING_MODEL = "embedding-3"
-LLM_TEMPERATURE = 0.1
+
+LLM_TEMPERATURE = 0.7
 LLM_MAX_TOKENS = 4096
 
-# LLM 配置字典（供 ChatOpenAI 使用）
+# LLM 配置字典（默认使用小米 MiMo）
 LLM_CONFIG = {
-    "api_key": ZHIPU_API_KEY,
-    "base_url": "https://open.bigmodel.cn/api/paas/v4",
-    "model_name": ZHIPU_MODEL,
+    "api_key": MIMO_API_KEY,
+    "base_url": MIMO_BASE_URL,
+    "model_name": MIMO_MODEL,
     "temperature": LLM_TEMPERATURE,
     "max_tokens": LLM_MAX_TOKENS,
     "timeout": 60,
@@ -75,3 +82,10 @@ LOG_FILE = LOG_DIR / "agent_mcp_rag.log"
 API_HOST = "0.0.0.0"
 API_PORT = 8000
 API_RELOAD = True
+
+# ======================
+# Neo4j 配置
+# ======================
+NEO4J_URI = "bolt://localhost:7687"
+NEO4J_USER = "neo4j"
+NEO4J_PASSWORD = "12345678"

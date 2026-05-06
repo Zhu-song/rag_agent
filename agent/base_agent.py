@@ -7,7 +7,7 @@ from typing import Dict, Any, Optional
 # 时间工具，用于计算超时、记录耗时
 import time
 # 从配置文件读取：最大迭代次数、思考超时时间
-from .config import AGENT_MAX_ITERATIONS, AGENT_THINKING_TIMEOUT
+from config import AGENT_MAX_ITERATIONS, AGENT_THINKING_TIMEOUT
 
 
 class BaseAgent(ABC):
@@ -84,6 +84,8 @@ class BaseAgent(ABC):
         self.reset()
         # 最终答案
         final_answer = ""
+        # 上下文：初始为用户问题，后续融入观察结果
+        context = query
 
         # 循环：只要没达到最大次数，就一直执行
         while self.should_continue():
@@ -91,7 +93,7 @@ class BaseAgent(ABC):
             start = time.time()
 
             # ===================== 1. 思考 =====================
-            thought = self.think(query)
+            thought = self.think(context)
             # 把思考结果存入历史日志
             self.history.append({"type": "think", "data": thought})
 
@@ -110,6 +112,9 @@ class BaseAgent(ABC):
             if action_result.get("is_final", False):
                 final_answer = action_result.get("answer", "")
                 break
+
+            # 更新上下文：融入观察结果，供下一轮思考使用
+            context = f"{query}\n[观察结果]：{observation}"
 
             # 迭代次数 +1
             self.current_iteration += 1

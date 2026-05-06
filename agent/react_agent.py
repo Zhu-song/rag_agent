@@ -2,8 +2,9 @@
 from typing import Dict, Any
 from .base_agent import BaseAgent
 from .llm.chat_model import get_chat_llm
-from .mcp.scheduler import MCPScheduler
-from .mcp.tool_registry import ToolRegistry
+# 统一使用项目根目录的 mcp 模块
+from mcp.scheduler import MCPScheduler
+from mcp.tool_registry import tool_registry
 import json
 
 # 定义 ReActAgent 智能体类，继承自 BaseAgent（ReAct = 思考+行动+观察 模式）
@@ -14,8 +15,8 @@ class ReActAgent(BaseAgent):
         super().__init__()
         # 初始化大语言模型（AI大脑），用于思考、回答问题
         self.llm = get_chat_llm()
-        # 初始化工具注册表：存储所有可用工具（计算器、天气、搜索...）
-        self.registry = ToolRegistry()
+        # 使用全局工具注册中心（统一管理）
+        self.registry = tool_registry
         # 初始化工具调度器：传入工具注册表，负责调用执行工具
         self.scheduler = MCPScheduler(self.registry)
 

@@ -16,6 +16,13 @@ from pydantic import BaseModel  # 新增：用于接收前端JSON参数
 from config import DOCS_DIR, VECTOR_DB_DIR, LLM_CONFIG
 from langchain_openai import ChatOpenAI
 
+# 导入 RAG 链（对接知识库检索）
+from chain.rag_chain import rag_answer
+from chain.query_rewrite import rewrite_query
+
+# 导入 GraphRAG 知识图谱问答管线
+from graph_rag.kgqa_pipeline import KGQAPipeline
+
 # 初始化 FastAPI 应用
 app = FastAPI(title="RAG 知识库问答系统", version="2.0")
 
@@ -43,6 +50,9 @@ llm = ChatOpenAI(
     max_tokens=LLM_CONFIG["max_tokens"],
     timeout=LLM_CONFIG["timeout"],
 )
+
+# 初始化 GraphRAG 知识图谱问答管线（启动时创建，全局复用）
+kgqa_pipeline = KGQAPipeline()
 
 # 新增：定义请求模型，匹配前端JSON参数
 class ChatRequest(BaseModel):
@@ -79,16 +89,24 @@ async def chat(request: ChatRequest):  # 修改：接收定义好的请求模型
     if not question:
         raise HTTPException(status_code=400, detail="问题不能为空")
     
-    # 此处可保留查询改写逻辑（后续对接 RAG 可启用）
-    # if request.rewrite:
-    #     question = rewrite_query(question)
+    try:
+        # 查询改写（可选）
+        if request.rewrite:
+            question = rewrite_query(question)
+        
+        # 使用 GraphRAG 管线（内部自动路由：知识图谱 or 向量检索）
+        answer = kgqa_pipeline.ask(question, vector_rag_func=rag_answer)
+        route = "graph_rag"
+    except Exception as e:
+        # 如果 GraphRAG 失败，降级为直接调用 LLM
+        answer = llm.invoke(question).content
+        route = "llm_fallback"
     
-    # 目前先直接调用智谱返回回答（后续可对接 RAG 检索）
-    answer = llm.invoke(question).content
     return {
         "code": 0,
         "query": question,
-        "answer": answer
+        "answer": answer,
+        "route": route
     }
 
 # ------------------- 健康检查接口（验证服务是否正常）-------------------
@@ -148,3 +166,70 @@ async def delete_file(filename: str):
         return {"code": 200, "msg": f"✅ 已删除 {filename}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"删除失败：{str(e)}")
+
+# ------------------- 构建知识库（上传文档后一键向量化）-------------------
+@app.post("/api/build_kb")
+async def build_knowledge_base():
+    """读取 docs/ 下所有文档 → 分块 → 向量化 → 保存到 FAISS"""
+    import glob
+    from langchain_core.documents import Document
+    from retriever.vector_store import save_vector_store
+    from splitter.semantic_splitter import SemanticSplitter
+
+    try:
+        # 1. 收集所有文档
+        all_docs = []
+        for ext in ALLOWED_EXTENSIONS:
+            for fp in DOCS_DIR.glob(f"*{ext}"):
+                text = ""
+                if ext == ".txt" or ext == ".md":
+                    text = fp.read_text(encoding="utf-8", errors="ignore")
+                elif ext == ".docx":
+                    from loader.doc_loader import load_docx
+                    text = load_docx(str(fp))
+                elif ext == ".pdf":
+                    from loader.pdf_loader import load_pdf
+                    text = load_pdf(str(fp))
+
+                if text.strip():
+                    all_docs.append(Document(page_content=text, metadata={"source": fp.name}))
+
+        if not all_docs:
+            return {"code": 400, "msg": "❌ docs/ 目录下没有可用的文档"}
+
+        # 2. 分块
+        splitter = SemanticSplitter()
+        chunks = []
+        for doc in all_docs:
+            chunks.extend(splitter.split_text(doc.page_content))
+
+        # 3. 向量化保存
+        save_vector_store(chunks)
+
+        return {
+            "code": 200,
+            "msg": f"✅ 知识库构建成功！共处理 {len(all_docs)} 个文档，生成 {len(chunks)} 个文本块"
+        }
+    except Exception as e:
+        return {"code": 500, "msg": f"❌ 构建失败：{str(e)}"}
+
+# ------------------- Agent 模式问答接口-------------------
+@app.post("/api/agent_chat")
+async def agent_chat(request: ChatRequest):
+    """使用 Agent 智能体回答（支持工具调用）"""
+    question = request.question.strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="问题不能为空")
+    try:
+        from agent.react_agent import ReActAgent
+        agent = ReActAgent()
+        result = agent.run(question)
+        return {
+            "code": 0,
+            "query": question,
+            "answer": result.get("answer", "无法获取答案"),
+            "iterations": result.get("iterations", 0),
+            "route": "agent"
+        }
+    except Exception as e:
+        return {"code": 500, "msg": f"Agent 执行失败：{str(e)}"}

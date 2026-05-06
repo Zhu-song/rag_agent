@@ -8,7 +8,7 @@
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from typing import List
-from .config import CHUNK_SIZE, CHUNK_OVERLAP
+from config import CHUNK_SIZE, CHUNK_OVERLAP
 
 
 def semantic_split(text: str) -> List[str]:

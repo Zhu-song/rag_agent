@@ -1,5 +1,5 @@
 #==================== 提示词工程 ==========================
-from langchain.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import SystemMessage
 
 
